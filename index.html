@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PWM Energy Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #f0f2f5; padding: 20px; min-width: 960px; }
+    h1 { font-size: 20px; font-weight: 500; color: #222; margin-bottom: 16px; }
+
+    .stat-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 16px; }
+    .stat { background: white; border-radius: 10px; border: 0.5px solid #e0e0e0; padding: 12px 14px; }
+    .stat .lbl { font-size: 11px; color: #999; margin-bottom: 4px; }
+    .stat .num { font-size: 20px; font-weight: 500; color: #222; }
+    .stat .num.green  { color: #1D9E75; }
+    .stat .num.blue   { color: #3266ad; }
+    .stat .num.orange { color: #e67e00; }
+
+    .main { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
+    .left { display: flex; flex-direction: column; gap: 14px; }
+    .panel { background: white; border-radius: 10px; border: 0.5px solid #e0e0e0; padding: 16px; }
+    .panel-title { font-size: 11px; font-weight: 500; color: #999; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .control-row { margin-bottom: 14px; }
+    .control-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .control-label span { font-size: 13px; color: #555; }
+    .control-label strong { font-size: 18px; font-weight: 500; color: #3266ad; }
+    input[type=range] { width: 100%; accent-color: #3266ad; }
+    .range-ends { display: flex; justify-content: space-between; font-size: 10px; color: #bbb; margin-top: 2px; }
+
+    .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; }
+    .freq-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 10px; }
+    .btn { padding: 7px 0; font-size: 12px; border-radius: 7px; border: 1px solid #ddd; background: white; cursor: pointer; color: #555; }
+    .btn.active { background: #3266ad; color: white; border-color: #3266ad; }
+
+    .band-pill { display: inline-block; margin-top: 10px; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 500; background: #e8f0fb; color: #3266ad; }
+
+    .comp-grid { display: flex; flex-direction: column; gap: 9px; }
+    .comp-card { background: #f7f9fc; border-radius: 8px; border: 0.5px solid #e4eaf3; padding: 11px 13px; display: flex; align-items: center; gap: 12px; }
+    .comp-icon { font-size: 22px; flex-shrink: 0; }
+    .comp-info { flex: 1; }
+    .comp-name { font-size: 12px; font-weight: 500; color: #333; }
+    .comp-sub  { font-size: 10px; color: #aaa; margin-top: 1px; }
+    .bar-wrap  { margin-top: 5px; height: 3px; background: #e8ecf2; border-radius: 2px; }
+    .bar-fill  { height: 3px; border-radius: 2px; transition: width 0.3s; }
+    .comp-right { text-align: right; min-width: 60px; }
+    .comp-mw   { font-size: 14px; font-weight: 500; }
+    .comp-pct  { font-size: 10px; color: #aaa; margin-top: 1px; }
+
+    .sim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .sim-box { background: #f7f9fc; border-radius: 8px; border: 0.5px solid #e4eaf3; padding: 12px; text-align: center; }
+    .sim-box svg { display: block; margin: 0 auto; }
+    .sim-lbl { font-size: 11px; color: #999; margin-top: 7px; }
+    .sim-val { font-size: 12px; font-weight: 500; color: #3266ad; margin-top: 2px; }
+    .sim-detail { font-size: 10px; color: #aaa; margin-top: 2px; }
+
+    .right { display: flex; flex-direction: column; gap: 14px; }
+    .chart-panel { background: white; border-radius: 10px; border: 0.5px solid #e0e0e0; padding: 16px; }
+    .chart-panel img { width: 100%; border-radius: 6px; display: block; }
+
+    .analyze-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .a-card { background: #f7f9fc; border-radius: 8px; border: 0.5px solid #e4eaf3; padding: 10px 12px; }
+    .a-card .a-lbl { font-size: 10px; color: #aaa; margin-bottom: 3px; }
+    .a-card .a-val { font-size: 15px; font-weight: 500; color: #333; }
+    .grade-box { text-align: center; padding: 12px; border-radius: 8px; background: #e8f5ee; margin-bottom: 10px; }
+    .grade-letter { font-size: 36px; font-weight: 500; color: #1D9E75; }
+    .grade-note { font-size: 12px; color: #555; margin-top: 4px; }
+    .recommend-box { background: #fffaf0; border: 0.5px solid #f5e8d0; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #7a5200; }
+
+    .action-row { display: flex; gap: 10px; margin-top: 10px; }
+    .act-btn { flex: 1; padding: 9px 0; font-size: 12px; border-radius: 8px; border: 1px solid #ddd; background: white; cursor: pointer; color: #555; font-weight: 500; }
+    .act-btn.primary { background: #3266ad; color: white; border-color: #3266ad; }
+    .act-btn.danger  { background: white; color: #E24B4A; border-color: #E24B4A; }
+  </style>
+</head>
+<body>
+
+<h1>⚡ PWM Energy Dashboard</h1>
+
+<div class="stat-row">
+  <div class="stat"><div class="lbl">Duty cycle</div><div class="num blue" id="dc">50%</div></div>
+  <div class="stat"><div class="lbl">Frequency</div><div class="num blue" id="freqStat">1000 Hz</div></div>
+  <div class="stat"><div class="lbl">Period</div><div class="num orange" id="periodStat">1.0 ms</div></div>
+  <div class="stat"><div class="lbl">ON time</div><div class="num" id="onStat">0.5 ms</div></div>
+  <div class="stat"><div class="lbl">Power consumed</div><div class="num" id="pw">33.0 mW</div></div>
+  <div class="stat"><div class="lbl">Power saved</div><div class="num green" id="sv">33.0 mW</div></div>
+</div>
+
+<div class="main">
+  <div class="left">
+
+    <div class="panel">
+      <div class="panel-title">Controls</div>
+      <div class="control-row">
+        <div class="control-label"><span>Duty cycle</span><strong id="dutyBig">50%</strong></div>
+        <input type="range" min="0" max="100" value="50" step="1" id="sliderDuty" oninput="handleChange()">
+        <div class="range-ends"><span>0%</span><span>50%</span><span>100%</span></div>
+        <div class="btns">
+          <button class="btn" onclick="snapDuty(100,this)">100%</button>
+          <button class="btn" onclick="snapDuty(70,this)">70%</button>
+          <button class="btn active" onclick="snapDuty(50,this)">50%</button>
+          <button class="btn" onclick="snapDuty(20,this)">20%</button>
+        </div>
+      </div>
+      <div class="control-row" style="margin-top:6px;">
+        <div class="control-label"><span>Frequency</span><strong id="freqBig">1000 Hz</strong></div>
+        <input type="range" min="1" max="10000" value="1000" step="1" id="sliderFreq" oninput="handleChange()">
+        <div class="range-ends"><span>1 Hz</span><span>5000 Hz</span><span>10000 Hz</span></div>
+        <div class="freq-btns">
+          <button class="btn" onclick="snapFreq(1,this)">1 Hz</button>
+          <button class="btn" onclick="snapFreq(50,this)">50 Hz</button>
+          <button class="btn" onclick="snapFreq(500,this)">500 Hz</button>
+          <button class="btn active" onclick="snapFreq(1000,this)">1 kHz</button>
+          <button class="btn" onclick="snapFreq(5000,this)">5 kHz</button>
+          <button class="btn" onclick="snapFreq(10000,this)">10 kHz</button>
+        </div>
+        <div><span class="band-pill" id="bandPill">Fast / inaudible</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Component power readings</div>
+      <div class="comp-grid">
+        <div class="comp-card">
+          <div class="comp-icon">💡</div>
+          <div class="comp-info">
+            <div class="comp-name">LED Bulb</div>
+            <div class="comp-sub">Full load: 33.0 mW</div>
+            <div class="bar-wrap"><div class="bar-fill" id="bulbBar" style="width:50%;background:#3266ad;"></div></div>
+          </div>
+          <div class="comp-right">
+            <div class="comp-mw" style="color:#3266ad" id="bulbMw">16.5 mW</div>
+            <div class="comp-pct" id="bulbPct">50%</div>
+          </div>
+        </div>
+        <div class="comp-card">
+          <div class="comp-icon">🌀</div>
+          <div class="comp-info">
+            <div class="comp-name">DC Fan Motor</div>
+            <div class="comp-sub">Full load: 33.0 mW</div>
+            <div class="bar-wrap"><div class="bar-fill" id="fanBar" style="width:50%;background:#1D9E75;"></div></div>
+          </div>
+          <div class="comp-right">
+            <div class="comp-mw" style="color:#1D9E75" id="fanMw">16.5 mW</div>
+            <div class="comp-pct" id="fanPct">50%</div>
+          </div>
+        </div>
+        <div class="comp-card" style="background:#fffaf5;border-color:#f5e8d0;">
+          <div class="comp-icon">⚡</div>
+          <div class="comp-info">
+            <div class="comp-name">Total system</div>
+            <div class="comp-sub">Both loads combined</div>
+            <div class="bar-wrap"><div class="bar-fill" id="totalBar" style="width:50%;background:#e67e00;"></div></div>
+          </div>
+          <div class="comp-right">
+            <div class="comp-mw" style="color:#e67e00" id="totalMw">33.0 mW</div>
+            <div class="comp-pct">of 66 mW max</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Live simulation</div>
+      <div class="sim-grid">
+        <div class="sim-box">
+          <svg width="86" height="86" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="47" fill="#e8f0fb" stroke="#c0d0ee" stroke-width="1"/>
+            <g id="fanBlades" style="transform-origin:50px 50px;">
+              <ellipse cx="50" cy="22" rx="10" ry="20" fill="#3266ad" opacity="0.85" transform="rotate(0,50,50)"/>
+              <ellipse cx="50" cy="22" rx="10" ry="20" fill="#3266ad" opacity="0.85" transform="rotate(90,50,50)"/>
+              <ellipse cx="50" cy="22" rx="10" ry="20" fill="#3266ad" opacity="0.85" transform="rotate(180,50,50)"/>
+              <ellipse cx="50" cy="22" rx="10" ry="20" fill="#3266ad" opacity="0.85" transform="rotate(270,50,50)"/>
+            </g>
+            <circle cx="50" cy="50" r="7" fill="#1a4a8a"/>
+          </svg>
+          <div class="sim-lbl">DC Fan Motor</div>
+          <div class="sim-val" id="fanVal">Half speed</div>
+          <div class="sim-detail" id="fanRpm">1500 RPM — 16.5 mW</div>
+        </div>
+        <div class="sim-box">
+          <svg width="86" height="86" viewBox="0 0 100 100">
+            <circle id="bulbGlow" cx="50" cy="42" r="27" fill="#ffe066" opacity="0.5"/>
+            <path id="bulbGlass" d="M35,42 Q35,22 50,18 Q65,22 65,42 Q65,55 58,62 L42,62 Q35,55 35,42 Z"
+                  fill="#fff9c4" stroke="#ccc" stroke-width="1"/>
+            <rect x="42" y="62" width="16" height="5" rx="2" fill="#bbb"/>
+            <rect x="43" y="67" width="14" height="4" rx="1" fill="#aaa"/>
+            <rect x="44" y="71" width="12" height="3" rx="1" fill="#999"/>
+            <path id="filament" d="M45,58 Q50,50 55,58" stroke="#e67e00" stroke-width="1.5" fill="none"/>
+          </svg>
+          <div class="sim-lbl">LED Bulb</div>
+          <div class="sim-val" id="bulbVal">Medium</div>
+          <div class="sim-detail" id="bulbLumen">400 lm — 16.5 mW</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="right">
+
+    <div class="chart-panel">
+      <div class="panel-title">PWM signal waveform — 3 cycles shown</div>
+      <img id="waveImg" src="/chart/waveform?duty=50&freq=1000" alt="PWM waveform">
+    </div>
+
+    <div class="chart-panel">
+      <div class="panel-title">Average power vs duty cycle</div>
+      <img id="powerImg" src="/chart/power" alt="Power chart">
+    </div>
+
+    <!-- Analyzer -->
+    <div class="panel">
+      <div class="panel-title">Session analyzer — Python powered</div>
+      <div id="analyzeEmpty" style="font-size:13px;color:#aaa;padding:10px 0;">
+        Change duty cycle or frequency a few times to generate analysis.
+      </div>
+      <div id="analyzeResults" style="display:none;">
+        <div class="grade-box">
+          <div class="grade-letter" id="gradeVal">—</div>
+          <div class="grade-note" id="gradeNote">—</div>
+        </div>
+        <div class="analyze-grid">
+          <div class="a-card"><div class="a-lbl">Avg power consumed</div><div class="a-val" id="avgPower">—</div></div>
+          <div class="a-card"><div class="a-lbl">Avg power saved</div><div class="a-val" id="avgSaved">—</div></div>
+          <div class="a-card"><div class="a-lbl">Avg duty cycle</div><div class="a-val" id="avgDuty">—</div></div>
+          <div class="a-card"><div class="a-lbl">Efficiency score</div><div class="a-val" id="effPct">—</div></div>
+          <div class="a-card"><div class="a-lbl">Peak saving</div><div class="a-val" id="peakSave">—</div></div>
+          <div class="a-card"><div class="a-lbl">Total readings</div><div class="a-val" id="totalReadings">—</div></div>
+        </div>
+        <div class="recommend-box" id="recommend">—</div>
+      </div>
+      <div class="action-row">
+        <button class="act-btn primary" onclick="runAnalyze()">Run analyzer</button>
+        <button class="act-btn" onclick="viewReport()">Session report</button>
+        <button class="act-btn danger" onclick="clearLog()">Clear log</button>
+      </div>
+    </div>
+
+    <!-- Session report image -->
+    <div class="chart-panel" id="reportPanel" style="display:none;">
+      <div class="panel-title">Session report — generated by Python (report.py)</div>
+      <img id="reportImg" src="" alt="Session report">
+    </div>
+
+  </div>
+</div>
+
+<script>
+let angle = 0;
+let currentDuty = 50;
+let currentFreq = 1000;
+let debounceTimer = null;
+
+function getSpeedLabel(d) {
+  if (d === 0) return "Stopped";
+  if (d <= 20) return "Very slow";
+  if (d <= 50) return "Half speed";
+  if (d <= 75) return "Fast";
+  return "Full speed";
+}
+function getBulbLabel(d) {
+  if (d === 0) return "Off";
+  if (d <= 20) return "Very dim";
+  if (d <= 50) return "Medium";
+  if (d <= 75) return "Bright";
+  return "Full bright";
+}
+
+function updateSimulation(sim) {
+  const d = sim.duty;
+  const glowR = 10 + (d / 100) * 30;
+  document.getElementById('bulbGlow').setAttribute('r', glowR);
+  document.getElementById('bulbGlow').setAttribute('opacity', d / 100);
+  document.getElementById('bulbGlass').style.fill = d === 0
+    ? '#f0f0f0' : `hsl(54,${60+d*0.4}%,${70+d*0.25}%)`;
+  document.getElementById('filament').setAttribute('stroke',
+    d === 0 ? '#ccc' : `hsl(30,100%,${30+d*0.4}%)`);
+  document.getElementById('fanVal').textContent   = sim.fan.status;
+  document.getElementById('bulbVal').textContent  = sim.bulb.status;
+  document.getElementById('fanRpm').textContent   = sim.fan.rpm + ' RPM — ' + sim.fan.power_mw + ' mW';
+  document.getElementById('bulbLumen').textContent = sim.bulb.lumen + ' lm — ' + sim.bulb.power_mw + ' mW';
+}
+
+function updatePower(data) {
+  const d = data.duty;
+  const bulbMw = (33.0 * d / 100).toFixed(1);
+  const fanMw  = (33.0 * d / 100).toFixed(1);
+  const pct = d + '%';
+
+  document.getElementById('bulbMw').textContent  = bulbMw + ' mW';
+  document.getElementById('bulbPct').textContent = pct;
+  document.getElementById('bulbBar').style.width = pct;
+  document.getElementById('fanMw').textContent   = fanMw + ' mW';
+  document.getElementById('fanPct').textContent  = pct;
+  document.getElementById('fanBar').style.width  = pct;
+  document.getElementById('totalMw').textContent = data.power_mw + ' mW';
+  document.getElementById('totalBar').style.width = pct;
+
+  document.getElementById('dc').textContent       = data.duty + '%';
+  document.getElementById('pw').textContent       = data.power_mw + ' mW';
+  document.getElementById('sv').textContent       = data.saved_mw + ' mW';
+  document.getElementById('freqStat').textContent = data.freq_hz + ' Hz';
+  document.getElementById('periodStat').textContent = data.period_ms + ' ms';
+  document.getElementById('onStat').textContent   = data.on_ms + ' ms';
+  document.getElementById('bandPill').textContent = data.band;
+}
+
+function handleChange() {
+  currentDuty = parseInt(document.getElementById('sliderDuty').value);
+  currentFreq = parseInt(document.getElementById('sliderFreq').value);
+  document.getElementById('dutyBig').textContent = currentDuty + '%';
+  document.getElementById('freqBig').textContent = currentFreq + ' Hz';
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(sendUpdate, 120);
+}
+
+function sendUpdate() {
+  fetch('/api/set', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ duty: currentDuty, freq: currentFreq })
+  })
+  .then(r => r.json())
+  .then(data => {
+    updatePower(data);
+    const t = Date.now();
+    document.getElementById('waveImg').src  = `/chart/waveform?duty=${currentDuty}&freq=${currentFreq}&t=${t}`;
+    document.getElementById('powerImg').src = `/chart/power?t=${t}`;
+    return fetch(`/api/simulate?duty=${currentDuty}&freq=${currentFreq}`);
+  })
+  .then(r => r.json())
+  .then(sim => updateSimulation(sim));
+}
+
+function snapDuty(d, btn) {
+  document.querySelectorAll('.btns .btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('sliderDuty').value = d;
+  currentDuty = d;
+  document.getElementById('dutyBig').textContent = d + '%';
+  sendUpdate();
+}
+
+function snapFreq(f, btn) {
+  document.querySelectorAll('.freq-btns .btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('sliderFreq').value = f;
+  currentFreq = f;
+  document.getElementById('freqBig').textContent = f + ' Hz';
+  sendUpdate();
+}
+
+function runAnalyze() {
+  fetch('/api/analyze').then(r => r.json()).then(data => {
+    if (data.status === 'no_data') {
+      document.getElementById('analyzeEmpty').textContent = data.message;
+      document.getElementById('analyzeResults').style.display = 'none';
+      return;
+    }
+    document.getElementById('analyzeEmpty').style.display = 'none';
+    document.getElementById('analyzeResults').style.display = 'block';
+    document.getElementById('gradeVal').textContent      = data.grade;
+    document.getElementById('gradeNote').textContent     = data.grade_note;
+    document.getElementById('avgPower').textContent      = data.avg_power_mw + ' mW';
+    document.getElementById('avgSaved').textContent      = data.avg_saving_mw + ' mW';
+    document.getElementById('avgDuty').textContent       = data.avg_duty_pct + '%';
+    document.getElementById('effPct').textContent        = data.efficiency_pct + '%';
+    document.getElementById('peakSave').textContent      = data.peak_saving_mw + ' mW';
+    document.getElementById('totalReadings').textContent = data.total_readings;
+    document.getElementById('recommend').textContent     = '💡 ' + data.recommendation;
+  });
+}
+
+function viewReport() {
+  const panel = document.getElementById('reportPanel');
+  panel.style.display = 'block';
+  document.getElementById('reportImg').src = '/chart/report?t=' + Date.now();
+  panel.scrollIntoView({ behavior: 'smooth' });
+}
+
+function clearLog() {
+  fetch('/api/clearlog', { method: 'POST' }).then(() => {
+    document.getElementById('analyzeResults').style.display = 'none';
+    document.getElementById('analyzeEmpty').style.display = 'block';
+    document.getElementById('analyzeEmpty').textContent = 'Log cleared. Change settings to start fresh.';
+    document.getElementById('reportPanel').style.display = 'none';
+  });
+}
+
+function animateFan() {
+  const speed = (currentDuty / 100) * 8;
+  angle = (angle + speed) % 360;
+  document.getElementById('fanBlades').setAttribute('transform', `rotate(${angle},50,50)`);
+  requestAnimationFrame(animateFan);
+}
+
+fetch('/api/status').then(r => r.json()).then(data => {
+  currentDuty = data.duty;
+  currentFreq = data.freq_hz;
+  document.getElementById('dutyBig').textContent = data.duty + '%';
+  document.getElementById('freqBig').textContent = data.freq_hz + ' Hz';
+  updatePower(data);
+  return fetch(`/api/simulate?duty=${currentDuty}&freq=${currentFreq}`);
+}).then(r => r.json()).then(sim => updateSimulation(sim));
+
+animateFan();
+</script>
+</body>
+</html>
